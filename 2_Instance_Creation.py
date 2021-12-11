@@ -1,14 +1,17 @@
 import numpy as np
 import pickle
-from geopy.distance import vincenty
+# from geopy.distance import vincenty
+from geopy.distance import geodesic 
 import math
 import time
 import random
 import pandas as pd
+import re
 
 # Change the current working directory to the location of 'Combined Trajectory_Label_Geolife' folder.
 
-current = time.clock()
+# current = time.clock()
+current = time.perf_counter()
 min_threshold = 20
 max_threshold = 248
 min_distance = 150
@@ -102,7 +105,8 @@ def compute_delta_time(p1, p2):
 def compute_distance(p1, p2):
     lat_long_1 = (p1[0], p1[1])
     lat_long_2 = (p2[0], p2[1])
-    return vincenty(lat_long_1, lat_long_2).meters
+    # return vincenty(lat_long_1, lat_long_2).meters
+    return geodesic(lat_long_1, lat_long_2).meters
 
 
 def compute_speed(distance, delta_time):
@@ -158,6 +162,23 @@ def remove_error_unlabeled(trip_motion_features):
     trip_motion_features = np.delete(np.array(trip_motion_features), outlier, axis=1)
     return trip_motion_features
 
+def checkPoint(point1, point2):
+    lat_1 = point1[0]
+    long_1 = point1[1]
+    lat_2 = point2[0]
+    long_2 = point2[1]
+
+    lat_reg = '^[-+]?([1-8]?\d(\.\d{1,8})?|90(\.0{1,8})?)$'
+    lon_reg = '^[-+]?(((0|1?[0-7]?[0-9]?)|([1-9]?[0-9]?))(([.][0-9]{1,8})?)|180(([.][0]{1,8})?))$'
+
+    lat_res_1 = re.match(lat_reg, str(lat_1))
+    lat_res_2 = re.match(lat_reg, str(lat_2))
+    lon_res_1 = re.match(lon_reg, str(long_1))
+    lon_res_2 = re.match(lon_reg, str(long_2))
+
+    if lat_res_1 and lat_res_2 and lon_res_1 and lon_res_2:
+        return True
+    return False
 
 def compute_trip_motion_features(all_trip_one_user, data_type):
     """
@@ -177,6 +198,9 @@ def compute_trip_motion_features(all_trip_one_user, data_type):
             acc = []
             jerk = []
             bearing_rate = []
+            valid_flag = checkPoint(trip[0], trip[1])
+            if not valid_flag:
+                continue
             delta_time_1 = compute_delta_time(trip[0], trip[1])
             distance_1 = compute_distance(trip[0], trip[1])
             speed1 = compute_speed(distance_1, delta_time_1)
@@ -216,14 +240,14 @@ def compute_trip_motion_features(all_trip_one_user, data_type):
                 all_trip_motion_features_one_user.append(trip_motion_features)
     return all_trip_motion_features_one_user
 
-trip_motion_all_user_with_label = [compute_trip_motion_features(user, data_type='labeled') for user
-                                   in trip_all_user_with_label]
-trip_motion_all_user_wo_label = [compute_trip_motion_features(user, data_type='unlabeled') for user
-                                 in trip_all_user_wo_label]
+# trip_motion_all_user_with_label = [compute_trip_motion_features(user, data_type='labeled') for user
+#                                    in trip_all_user_with_label]
+# trip_motion_all_user_wo_label = [compute_trip_motion_features(user, data_type='unlabeled') for user
+#                                  in trip_all_user_wo_label]
 
-# This pickling and unpickling is due to large computation time before this line.
-with open('paper2_trips_motion_features_temp.pickle', 'wb') as f:
-    pickle.dump([trip_motion_all_user_with_label, trip_motion_all_user_wo_label], f)
+# # This pickling and unpickling is due to large computation time before this line.
+# with open('paper2_trips_motion_features_temp.pickle', 'wb') as f:
+#     pickle.dump([trip_motion_all_user_with_label, trip_motion_all_user_wo_label], f)
 
 filename = '../Mode-codes-Revised/paper2_trips_motion_features_temp.pickle'
 with open(filename, 'rb') as f:
@@ -281,4 +305,4 @@ random.shuffle(trip_motion_all_user_wo_label)
 with open('paper2_trips_motion_features_NotFixedLength_woOutliers.pickle', 'wb') as f:
     pickle.dump([trip_motion_all_user_with_label, trip_motion_all_user_wo_label], f)
 
-print('Running time', time.clock() - current)
+print('Running time', time.perf_counter() - current)
